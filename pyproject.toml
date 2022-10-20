@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "cloudcam"
+version = "0.1.0"
+description = ""
+authors = ["Areeq Hasan <areeq.i.hasan@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+flask = "^2.2.2"
+numpy = "^1.23.4"
+opencv-python = "^4.6.0.66"
+matplotlib = "^3.6.1"
+flask-cors = "^3.0.10"
+scikit-image = "^0.19.3"
+h5py = "^3.7.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pylint = "^2.15.4"
+black = "^22.10.0"
+mypy = "^0.982"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
