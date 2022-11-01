@@ -154,6 +154,7 @@ cython_debug/
 snapshots/
 
 *.npz
+*.hdf
 
 .DS_Store
 

@@ -29,15 +29,19 @@ function App() {
             <h2>Stream</h2>
             <div>
               <img src="http://127.0.0.1:5000/stream" style={{ width: 346, height: 521, paddingTop: 156, paddingBottom: 79 }}></img>
-              <button onClick={() => {
-                fetch("http://127.0.0.1:5000/snapshot/take").then(result => result.json())
-                  .then(
-                    (result: SnapshotData) => {
-                      setSegmentationData(null)
-                      setSnapshotData(result)
-                    }
-                  )
-              }}>Take Snapshot</button>
+              <div className="parameters-form">
+                <h3>Snapshot Parameters</h3>
+                <div className="parameter-wrapper"><p>Frames / Snapshot: </p><input type="number" value={1}></input></div>
+                <button onClick={() => {
+                  fetch("http://127.0.0.1:5000/snapshot/take").then(result => result.json())
+                    .then(
+                      (result: SnapshotData) => {
+                        setSegmentationData(null)
+                        setSnapshotData(result)
+                      }
+                    )
+                }}>Take Snapshot</button>
+              </div>
             </div>
           </div>
           <div className="snapshot">
@@ -55,14 +59,20 @@ function App() {
                   ]}
                   layout={{ width: 500, height: 700, yaxis: { autorange: "reversed" } }}
                 />
-                <button onClick={() => {
-                  fetch("http://127.0.0.1:5000/snapshot/segment").then(result => result.json())
-                    .then(
-                      (result: SegmentationData) => {
-                        setSegmentationData(result)
-                      }
-                    )
-                }}>Segment Snapshot</button>
+                <div className="parameters-form">
+                  <h3>Segmentation Parameters</h3>
+                  <h4>Region of Interest (ROI)</h4>
+                  <div className="parameter-wrapper"><p>Center: </p><input type="number" value={375}></input><input type="number" value={310}></input></div>
+                  <div className="parameter-wrapper"><p>Radius: </p><input type="number" value={50}></input></div>
+                  <button onClick={() => {
+                    fetch("http://127.0.0.1:5000/snapshot/segment").then(result => result.json())
+                      .then(
+                        (result: SegmentationData) => {
+                          setSegmentationData(result)
+                        }
+                      )
+                  }}>Segment Snapshot</button>
+                </div>
               </div>
               : <p>
                 Once you take a snapshot, you can view the results here and configure its segmentation.
