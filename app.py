@@ -11,7 +11,7 @@ import cv2
 from skimage.segmentation import active_contour, flood
 from skimage.filters import gaussian
 
-from flask import Flask, Response
+from flask import Flask, Response, request
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -76,16 +76,20 @@ def take_snapshot():
     return data
 
 
-@app.route("/snapshot/segment")
+@app.route("/snapshot/segment", methods=["POST"])
 def segment_snapshot():
+    segmentation_parameters = request.json
+    center = segmentation_parameters["center"]
+    radius = segmentation_parameters["radius"]
+
     with h5py.File("snapshot_tmp.hdf", "r+") as tmp:
         snapshot_ds = tmp["snapshot"]
         snapshot = snapshot_ds[:]
 
         s = np.linspace(0, 2 * np.pi, 400)
-        r = 375 + 50 * np.sin(s)
-        c = 310 + 50 * np.cos(s)
-        roi = np.array([r, c]).T
+        roi = np.array(
+            [center[1] + radius * np.sin(s), center[0] + radius * np.cos(s)]
+        ).T
 
         mask, centroid, size = segment(snapshot, roi)
         segmentation_ds = tmp.create_dataset("segmentation", data=mask)

@@ -4,9 +4,18 @@ import Plot from 'react-plotly.js'
 
 import './App.css'
 
+interface SnapshotParameters {
+  frames: number
+}
+
 interface SnapshotData {
   timestamp: string,
   snapshot: Array<Array<number>>,
+}
+
+interface SegmentationParameters {
+  center: Array<number>,
+  radius: number
 }
 
 interface SegmentationData {
@@ -17,7 +26,10 @@ interface SegmentationData {
 
 function App() {
 
+  const [snapshotParameters, setSnapshotParameters] = useState<SnapshotParameters>({ frames: 1 })
   const [snapshotData, setSnapshotData] = useState<SnapshotData | null>(null)
+
+  const [segmentationParameters, setSegmentationParameters] = useState<SegmentationParameters>({ center: [250, 350], radius: 50 })
   const [segmentationData, setSegmentationData] = useState<SegmentationData | null>(null)
 
   return (
@@ -31,7 +43,13 @@ function App() {
               <img src="http://127.0.0.1:5000/stream" style={{ width: 346, height: 521, paddingTop: 156, paddingBottom: 79 }}></img>
               <div className="parameters-form">
                 <h3>Snapshot Parameters</h3>
-                <div className="parameter-wrapper"><p>Frames / Snapshot: </p><input type="number" value={1}></input></div>
+                <div className="parameter-wrapper">
+                  <p>Frames / Snapshot: </p>
+                  <input
+                    type="number"
+                    value={snapshotParameters.frames}
+                    onChange={(e) => setSnapshotParameters({ ...snapshotParameters, frames: e.target.valueAsNumber })} />
+                </div>
                 <button onClick={() => {
                   fetch("http://127.0.0.1:5000/snapshot/take").then(result => result.json())
                     .then(
@@ -62,10 +80,32 @@ function App() {
                 <div className="parameters-form">
                   <h3>Segmentation Parameters</h3>
                   <h4>Region of Interest (ROI)</h4>
-                  <div className="parameter-wrapper"><p>Center: </p><input type="number" value={375}></input><input type="number" value={310}></input></div>
-                  <div className="parameter-wrapper"><p>Radius: </p><input type="number" value={50}></input></div>
+                  <div className="parameter-wrapper">
+                    <p>Center: </p>
+                    <input
+                      type="number"
+                      value={segmentationParameters.center[0]}
+                      onChange={(e) => setSegmentationParameters({ ...segmentationParameters, center: [e.target.valueAsNumber, segmentationParameters.center[1]] })} />
+                    <input
+                      type="number"
+                      value={segmentationParameters.center[1]}
+                      onChange={(e) => setSegmentationParameters({ ...segmentationParameters, center: [segmentationParameters.center[0], e.target.valueAsNumber] })} />
+                  </div>
+                  <div className="parameter-wrapper">
+                    <p>Radius: </p>
+                    <input
+                      type="number"
+                      value={segmentationParameters.radius}
+                      onChange={(e) => setSegmentationParameters({ ...segmentationParameters, radius: e.target.valueAsNumber })} />
+                  </div>
                   <button onClick={() => {
-                    fetch("http://127.0.0.1:5000/snapshot/segment").then(result => result.json())
+                    fetch("http://127.0.0.1:5000/snapshot/segment", {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(segmentationParameters)
+                    }).then(result => result.json())
                       .then(
                         (result: SegmentationData) => {
                           setSegmentationData(result)
