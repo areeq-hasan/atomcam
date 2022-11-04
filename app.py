@@ -13,6 +13,10 @@ from skimage.filters import gaussian
 from flask import Flask, Response, request
 from flask_cors import CORS
 
+# from instrumental.drivers.cameras import Camera
+
+# cam = Camera(...)
+# cam.start_live_video()
 frames = np.load("frames.npz")["data"]
 
 app = Flask(__name__)
@@ -21,6 +25,8 @@ CORS(app)
 
 def stream():
     while True:
+        # if cam.wait_for_frame():
+        #   yield cam.latest_frame()
         for frame in frames:
             yield frame
 
