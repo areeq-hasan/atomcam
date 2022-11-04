@@ -1,7 +1,6 @@
 import os
 import shutil
 
-import json
 from datetime import datetime
 
 import numpy as np
@@ -14,10 +13,10 @@ from skimage.filters import gaussian
 from flask import Flask, Response, request
 from flask_cors import CORS
 
+frames = np.load("frames.npz")["data"]
+
 app = Flask(__name__)
 CORS(app)
-
-frames = np.load("frames.npz")["data"]
 
 
 def stream():
@@ -26,7 +25,7 @@ def stream():
             yield frame
 
 
-def raster_stream():
+def stream_rasterized():
     for frame in stream():
         _, jpeg = cv2.imencode(".jpg", (frame - 1776) / (2688 - 1776) * 255)
         yield (
@@ -38,7 +37,7 @@ def raster_stream():
 @app.route("/stream")
 def render_stream():
     return Response(
-        raster_stream(),
+        stream_rasterized(),
         mimetype="multipart/x-mixed-replace; boundary=frame",
     )
 
@@ -68,12 +67,10 @@ def take_snapshot():
         snapshot_ds = tmp.create_dataset("snapshot", data=snapshot)
         snapshot_ds.attrs["timestamp"] = now.timestamp()
 
-    data = {
+    return {
         "timestamp": str(now.strftime("%x @ %X%p")),
         "snapshot": snapshot.tolist(),
     }
-
-    return data
 
 
 @app.route("/snapshot/segment", methods=["POST"])
@@ -96,13 +93,11 @@ def segment_snapshot():
         segmentation_ds.attrs["centroid"] = centroid
         segmentation_ds.attrs["size"] = size
 
-    data = {
+    return {
         "mask": mask.astype(int).tolist(),
         "centroid": list(centroid),
         "size": int(size),
     }
-
-    return data
 
 
 @app.route("/snapshot/store")
