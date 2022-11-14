@@ -4,33 +4,61 @@ import Plot from 'react-plotly.js'
 
 import './App.css'
 
-interface SnapshotParameters {
-  frames: number
+interface AcquisitionConfig {
+  numFrames: number
 }
 
-interface SnapshotData {
-  timestamp: string,
-  snapshot: Array<Array<number>>,
-}
-
-interface SegmentationParameters {
-  center: Array<number>,
+interface AnalysisConfig {
+  center: Array<number>
   radius: number
+  store: boolean
 }
 
-interface SegmentationData {
-  mask: Array<Array<number>>,
-  centroid: Array<number>,
+interface Snapshot {
+  timestamp: string
+  data: Array<Array<number>>
+  count: number
+  analysis?: Analysis
+}
+
+interface Analysis {
+  mask: Array<Array<number>>
+  centroid: Array<number>
   size: number
 }
 
 function App() {
 
-  const [snapshotParameters, setSnapshotParameters] = useState<SnapshotParameters>({ frames: 1 })
-  const [snapshotData, setSnapshotData] = useState<SnapshotData | null>(null)
+  const [acquisitionConfig, configureAcquisition] = useState<AcquisitionConfig>({ numFrames: 1 })
 
-  const [segmentationParameters, setSegmentationParameters] = useState<SegmentationParameters>({ center: [250, 350], radius: 50 })
-  const [segmentationData, setSegmentationData] = useState<SegmentationData | null>(null)
+  const [analyze, setAnalyze] = useState<boolean>(false)
+  const [analysisConfig, configureAnalysis] = useState<AnalysisConfig>({ center: [250, 350], radius: 50, store: true })
+
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
+
+  const [active, setActive] = useState<boolean>(false)
+
+  useEffect(() => {
+    let snapshotEventSource: EventSource | null = null
+    if (active) {
+      const serializedParameters = new URLSearchParams()
+      serializedParameters.append("numFrames", acquisitionConfig.numFrames.toString())
+      serializedParameters.append("analyze", analyze.toString())
+      if (analyze) {
+        serializedParameters.append("center", analysisConfig.center[0].toString())
+        serializedParameters.append("center", analysisConfig.center[1].toString())
+        serializedParameters.append("radius", analysisConfig.radius.toString())
+        serializedParameters.append("store", analysisConfig.store.toString())
+      }
+      snapshotEventSource = new EventSource(`http://127.0.0.1:5000/snapshot/stream?${serializedParameters.toString()}`)
+      snapshotEventSource.onmessage = (e) => {
+        setSnapshot(JSON.parse(e.data))
+      }
+    }
+    return () => {
+      snapshotEventSource?.close()
+    };
+  }, [active]);
 
   return (
     <div className="App">
@@ -40,113 +68,92 @@ function App() {
           <div className="stream">
             <h2>Stream</h2>
             <div>
-              <img src="http://127.0.0.1:5000/stream" style={{ width: 346, height: 521, paddingTop: 156, paddingBottom: 79 }}></img>
+              <img src="http://127.0.0.1:5000/stream" style={{ width: 346, height: 521 }}></img>
+            </div>
+          </div>
+          <div className="stack">
+            <h2>Configuration</h2>
+            <div className="wrapper">
               <div className="parameters-form">
-                <h3>Snapshot Parameters</h3>
+                <h3>Acquisition</h3>
                 <div className="parameter-wrapper">
                   <p>Frames / Snapshot: </p>
                   <input
                     type="number"
-                    value={snapshotParameters.frames}
-                    onChange={(e) => setSnapshotParameters({ ...snapshotParameters, frames: e.target.valueAsNumber })} />
+                    value={acquisitionConfig.numFrames}
+                    onChange={(e) => configureAcquisition({ ...acquisitionConfig, numFrames: e.target.valueAsNumber })}
+                    disabled={active} />
                 </div>
-                <button onClick={() => {
-                  fetch("http://127.0.0.1:5000/snapshot/take").then(result => result.json())
-                    .then(
-                      (result: SnapshotData) => {
-                        setSegmentationData(null)
-                        setSnapshotData(result)
-                      }
-                    )
-                }}>Take Snapshot</button>
               </div>
+              <div className="parameters-form">
+                <h3>Analysis <input type="checkbox" checked={analyze} onChange={() => setAnalyze(!analyze)} disabled={active} /></h3>
+                {analyze ? <><h4>Region of Interest (ROI)</h4>
+                  <div className="parameter-wrapper">
+                    <p>Center: </p>
+                    <input
+                      type="number"
+                      value={analysisConfig.center[0]}
+                      onChange={(e) => configureAnalysis({ ...analysisConfig, center: [e.target.valueAsNumber, analysisConfig.center[1]] })}
+                      disabled={active} />
+                    <input
+                      type="number"
+                      value={analysisConfig.center[1]}
+                      onChange={(e) => configureAnalysis({ ...analysisConfig, center: [analysisConfig.center[0], e.target.valueAsNumber] })}
+                      disabled={active} />
+                  </div>
+                  <div className="parameter-wrapper">
+                    <p>Radius: </p>
+                    <input
+                      type="number"
+                      value={analysisConfig.radius}
+                      onChange={(e) => configureAnalysis({ ...analysisConfig, radius: e.target.valueAsNumber })}
+                      disabled={active} />
+                  </div>
+                  <h4>Storage <input type="checkbox" checked={analysisConfig.store} onChange={() => configureAnalysis({ ...analysisConfig, store: !analysisConfig.store })} disabled={active} /></h4>
+                </> : <p>Tick "Analysis" to configure analysis.</p>}
+              </div>
+              <button onClick={() => setActive(!active)}>{!active ? "Start" : "Stop"}</button>
             </div>
           </div>
-          <div className="snapshot">
-            <h2>Snapshot</h2>
-            {snapshotData ?
+        </div>
+        {active && <div className="stack">
+          <h2>Experiment</h2>
+          <div className="wrapper">
+            {snapshot && <><div className="snapshot">
+              <h3>Snapshot (#{snapshot.count})</h3>
               <div>
-                <p>Timestamp: {snapshotData.timestamp}</p>
+                <p><b>Timestamp</b>: {snapshot.timestamp}</p>
                 <Plot
                   data={[
                     {
-                      z: snapshotData.snapshot,
+                      z: snapshot.data,
                       type: 'heatmap',
 
                     },
                   ]}
                   layout={{ width: 500, height: 700, yaxis: { autorange: "reversed" } }}
                 />
-                <div className="parameters-form">
-                  <h3>Segmentation Parameters</h3>
-                  <h4>Region of Interest (ROI)</h4>
-                  <div className="parameter-wrapper">
-                    <p>Center: </p>
-                    <input
-                      type="number"
-                      value={segmentationParameters.center[0]}
-                      onChange={(e) => setSegmentationParameters({ ...segmentationParameters, center: [e.target.valueAsNumber, segmentationParameters.center[1]] })} />
-                    <input
-                      type="number"
-                      value={segmentationParameters.center[1]}
-                      onChange={(e) => setSegmentationParameters({ ...segmentationParameters, center: [segmentationParameters.center[0], e.target.valueAsNumber] })} />
-                  </div>
-                  <div className="parameter-wrapper">
-                    <p>Radius: </p>
-                    <input
-                      type="number"
-                      value={segmentationParameters.radius}
-                      onChange={(e) => setSegmentationParameters({ ...segmentationParameters, radius: e.target.valueAsNumber })} />
-                  </div>
-                  <button onClick={() => {
-                    fetch("http://127.0.0.1:5000/snapshot/segment", {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify(segmentationParameters)
-                    }).then(result => result.json())
-                      .then(
-                        (result: SegmentationData) => {
-                          setSegmentationData(result)
-                        }
-                      )
-                  }}>Segment Snapshot</button>
-                </div>
               </div>
-              : <p>
-                Once you take a snapshot, you can view the results here and configure its segmentation.
-              </p>
-            }
+            </div>
+              {snapshot.analysis && <div className="segmentation">
+                <h3>Analysis</h3>
+                <div>
+                  <p>Centroid: ({snapshot.analysis.centroid[0]}, {snapshot.analysis.centroid[1]}); Size: {snapshot.analysis.size}</p>
+                  <Plot
+                    data={[
+                      {
+                        z: snapshot.analysis.mask,
+                        type: 'heatmap',
+                      },
+                    ]}
+                    layout={{ width: 500, height: 700, yaxis: { autorange: "reversed" } }}
+                  />
+                </div>
+              </div>}</>}
           </div>
-          <div className="segmentation">
-            <h2>Segmentation</h2>
-            {segmentationData ?
-              <div>
-                <p>Centroid: ({segmentationData.centroid[0]}, {segmentationData.centroid[1]}); Size: {segmentationData.size}</p>
-                <Plot
-                  data={[
-                    {
-                      z: segmentationData.mask,
-                      type: 'heatmap',
-                    },
-                  ]}
-                  layout={{ width: 500, height: 700, yaxis: { autorange: "reversed" } }}
-                />
-                <button onClick={() => {
-                  fetch("http://127.0.0.1:5000/snapshot/store").then(() => {
-                    setSnapshotData(null)
-                    setSegmentationData(null)
-                  })
-                }}>Store Snapshot</button>
-              </div> : <p>
-                Once you segment a snapshot, you can view the results here and store the snapshot.
-              </p>
-            }
-          </div>
-        </div>
+        </div>}
       </div>
-    </div>
+    </div >
   )
 }
 

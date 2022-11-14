@@ -8,6 +8,7 @@
 .wrapper {
   display: flex;
   flex-direction: row;
+  justify-content: center;
   gap: 30px;
 }
 
@@ -34,7 +35,7 @@
 .parameters-form {
   display: flex;
   flex-direction: column;
-  gap: 30px;
+  /* gap: 30px; */
 }
 
 .parameter-wrapper {

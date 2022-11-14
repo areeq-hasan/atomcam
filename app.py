@@ -1,6 +1,10 @@
 import os
 import shutil
 
+import itertools
+
+import json
+
 from datetime import datetime
 
 import numpy as np
@@ -40,6 +44,66 @@ def stream_rasterized():
         )
 
 
+def stream_snapshots(num_frames, analysis_config=None):
+    snapshot_frames = []
+    snapshot_count = 0
+    for frame_count, frame in enumerate(stream()):
+        snapshot_frames.append(frame)
+        if frame_count % num_frames != 0:
+            continue
+
+        snapshot_count += 1
+        snapshot = np.mean(snapshot_frames, axis=0)
+        now = datetime.now()
+
+        payload = {
+            "timestamp": str(now.strftime("%x @ %X%p")),
+            "count": snapshot_count,
+            "data": snapshot.tolist(),
+            "analysis": None,
+        }
+
+        if analysis_config:
+            center = analysis_config["center"]
+            radius = analysis_config["radius"]
+
+            s = np.linspace(0, 2 * np.pi, 400)
+            roi = np.array(
+                [center[1] + radius * np.sin(s), center[0] + radius * np.cos(s)]
+            ).T
+
+            mask, centroid, size = segment(snapshot, roi)
+
+            payload["analysis"] = {
+                "mask": mask.astype(int).tolist(),
+                "centroid": list(centroid),
+                "size": int(size),
+            }
+
+            store = analysis_config["store"]
+            if store:
+                timestamp_str = now.strftime("%Y-%m-%d_%H-%M-%S")
+                with h5py.File(
+                    f"snapshots/{timestamp_str}_{snapshot_count}.hdf", "w"
+                ) as snapshot_file:
+                    snapshot_ds = snapshot_file.create_dataset(
+                        "snapshot", data=snapshot
+                    )
+                    snapshot_ds.attrs["timestamp"] = now.timestamp()
+                    snapshot_ds.attrs["count"] = snapshot_count
+
+                    segmentation_ds = snapshot_file.create_dataset(
+                        "segmentation", data="mask"
+                    )
+                    segmentation_ds.attrs["centroid"] = centroid
+                    segmentation_ds.attrs["size"] = size
+
+        print(frame_count, snapshot.shape)
+        yield f"data: {json.dumps(payload)}\n\n"
+
+        snapshot_frames = []
+
+
 @app.route("/stream")
 def render_stream():
     return Response(
@@ -64,54 +128,29 @@ def segment(image, roi):
     return mask, centroid, size
 
 
-@app.route("/snapshot/take")
+# @app.route("/snapshot/stream", methods=["POST"])
+# def take_snapshot():
+#     snapshot_parameters = request.json
+#     num_frames = snapshot_parameters["numFrames"]
+#     return Response(stream_snapshots(num_frames), mimetype="text/event-stream")
+
+
+@app.route("/snapshot/stream")
 def take_snapshot():
-    snapshot = next(stream())
-    now = datetime.now()
-
-    with h5py.File("snapshot_tmp.hdf", "w") as tmp:
-        snapshot_ds = tmp.create_dataset("snapshot", data=snapshot)
-        snapshot_ds.attrs["timestamp"] = now.timestamp()
-
-    return {
-        "timestamp": str(now.strftime("%x @ %X%p")),
-        "snapshot": snapshot.tolist(),
-    }
-
-
-@app.route("/snapshot/segment", methods=["POST"])
-def segment_snapshot():
-    segmentation_parameters = request.json
-    center = segmentation_parameters["center"]
-    radius = segmentation_parameters["radius"]
-
-    with h5py.File("snapshot_tmp.hdf", "r+") as tmp:
-        snapshot_ds = tmp["snapshot"]
-        snapshot = snapshot_ds[:]
-
-        s = np.linspace(0, 2 * np.pi, 400)
-        roi = np.array(
-            [center[1] + radius * np.sin(s), center[0] + radius * np.cos(s)]
-        ).T
-
-        mask, centroid, size = segment(snapshot, roi)
-        segmentation_ds = tmp.create_dataset("segmentation", data=mask)
-        segmentation_ds.attrs["centroid"] = centroid
-        segmentation_ds.attrs["size"] = size
-
-    return {
-        "mask": mask.astype(int).tolist(),
-        "centroid": list(centroid),
-        "size": int(size),
-    }
+    num_frames = int(request.args["numFrames"])
+    analyze = request.args["analyze"] == "true"
+    analysis_config = None
+    if analyze:
+        analysis_config = {
+            "center": list(map(int, request.args.getlist("center"))),
+            "radius": int(request.args["radius"]),
+            "store": request.args["store"] == "true",
+        }
+    return Response(
+        stream_snapshots(num_frames, analysis_config),
+        mimetype="text/event-stream",
+    )
 
 
-@app.route("/snapshot/store")
-def store_snapshot():
-    with h5py.File("snapshot_tmp.hdf", "r") as tmp:
-        timestamp = tmp["snapshot"].attrs["timestamp"]
-    timestamp_dt = datetime.fromtimestamp(timestamp)
-    timestamp_str = timestamp_dt.strftime("%Y-%m-%d_%H-%M-%S")
-    shutil.copy2("snapshot_tmp.hdf", f"snapshots/{timestamp_str}.hdf")
-    os.remove("snapshot_tmp.hdf")
-    return timestamp_str
+if __name__ == "__main__":
+    app.run(threaded=True)
