@@ -64,13 +64,53 @@ function App() {
     <div className="App">
       <div>
         <h1>Atom Observer</h1>
-        <div className="wrapper">
-          <div className="stream">
-            <h2>Stream</h2>
-            <div>
-              <img src="http://127.0.0.1:5000/stream" style={{ width: 346, height: 521 }}></img>
+        <div className="stack">
+          <h2>Experiment</h2>
+          <div className="wrapper">
+            <div className="stream">
+              <h3>Stream</h3>
+              <div>
+                <img src="http://127.0.0.1:5000/stream" style={{ width: 346, height: 521, paddingTop: 156, paddingBottom: 79 }}></img>
+              </div>
             </div>
+            {active && snapshot && <>
+              <div className="snapshot">
+                <h3>Snapshot (#{snapshot.count})</h3>
+                <div>
+                  <p><b>Timestamp</b>: {snapshot.timestamp}</p>
+                  <Plot
+                    data={[
+                      {
+                        z: snapshot.data,
+                        type: 'heatmap',
+
+                      },
+                    ]}
+                    layout={{ width: 500, height: 700, yaxis: { autorange: "reversed" } }}
+                  />
+                </div>
+              </div>
+              {snapshot.analysis &&
+                <div className="segmentation">
+                  <h3>Analysis</h3>
+                  <div>
+                    <p>Centroid: ({snapshot.analysis.centroid[0]}, {snapshot.analysis.centroid[1]}); Size: {snapshot.analysis.size}</p>
+                    <Plot
+                      data={[
+                        {
+                          z: snapshot.analysis.mask,
+                          type: 'heatmap',
+                        },
+                      ]}
+                      layout={{ width: 500, height: 700, yaxis: { autorange: "reversed" } }}
+                    />
+                  </div>
+                </div>
+              }
+            </>}
           </div>
+        </div>
+        <div className="wrapper">
           <div className="stack">
             <h2>Configuration</h2>
             <div className="wrapper">
@@ -116,42 +156,6 @@ function App() {
             </div>
           </div>
         </div>
-        {active && <div className="stack">
-          <h2>Experiment</h2>
-          <div className="wrapper">
-            {snapshot && <><div className="snapshot">
-              <h3>Snapshot (#{snapshot.count})</h3>
-              <div>
-                <p><b>Timestamp</b>: {snapshot.timestamp}</p>
-                <Plot
-                  data={[
-                    {
-                      z: snapshot.data,
-                      type: 'heatmap',
-
-                    },
-                  ]}
-                  layout={{ width: 500, height: 700, yaxis: { autorange: "reversed" } }}
-                />
-              </div>
-            </div>
-              {snapshot.analysis && <div className="segmentation">
-                <h3>Analysis</h3>
-                <div>
-                  <p>Centroid: ({snapshot.analysis.centroid[0]}, {snapshot.analysis.centroid[1]}); Size: {snapshot.analysis.size}</p>
-                  <Plot
-                    data={[
-                      {
-                        z: snapshot.analysis.mask,
-                        type: 'heatmap',
-                      },
-                    ]}
-                    layout={{ width: 500, height: 700, yaxis: { autorange: "reversed" } }}
-                  />
-                </div>
-              </div>}</>}
-          </div>
-        </div>}
       </div>
     </div >
   )
